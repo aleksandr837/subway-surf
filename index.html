@@ -23,11 +23,12 @@
 <script type="module">
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'; // 1. Добавили импорт Draco
 
     const CONFIG = {
         groundY: 125,
         laneWidth: 31.0, 
-        speed: 8.2,         // Чуть помедленнее
+        speed: 8.2,
         jumpForce: 1.85,
         gravity: 0.08,
         segmentLength: 800,
@@ -42,7 +43,6 @@
             this.scene.fog = new THREE.Fog(0x87CEEB, 250, 1800);
 
             this.camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 10000);
-            // КАМЕРА: Еще ближе к игроку (Z=58) и ниже (Y=162)
             this.camera.position.set(0, CONFIG.groundY + 37, 58); 
 
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -59,9 +59,18 @@
             this.touchStart = { x: 0, y: 0 };
 
             this.initLights();
+            this.initLoaders(); // 2. Метод для настройки Draco
             this.load();
             this.bindControls();
             window.addEventListener('resize', () => this.onResize());
+        }
+
+        // Настраиваем Draco, чтобы сжатый файл character.glb открылся
+        initLoaders() {
+            const dracoLoader = new DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+            this.loader = new GLTFLoader();
+            this.loader.setDRACOLoader(dracoLoader);
         }
 
         onResize() {
@@ -78,14 +87,14 @@
         }
 
         async load() {
-            const loader = new GLTFLoader();
             try {
+                // Используем наш настроенный this.loader вместо локального
                 const [char, tr, str, tun, c] = await Promise.all([
-                    loader.loadAsync('character.glb'),
-                    loader.loadAsync('train.glb'),
-                    loader.loadAsync('street.glb'),
-                    loader.loadAsync('tunnel.glb'),
-                    loader.loadAsync('coin.glb')
+                    this.loader.loadAsync('character.glb'),
+                    this.loader.loadAsync('train.glb'),
+                    this.loader.loadAsync('street.glb'),
+                    this.loader.loadAsync('tunnel.glb'),
+                    this.loader.loadAsync('coin.glb')
                 ]);
 
                 this.assets.player = char.scene;
@@ -113,11 +122,13 @@
 
                 document.getElementById('loading').style.display = 'none';
                 this.animate(0);
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error("Ошибка загрузки:", err);
+                document.getElementById('loading').innerText = "ОШИБКА ФАЙЛОВ!";
+            }
         }
 
         bindControls() {
-            // ПК УПРАВЛЕНИЕ: A, D, Пробел + Стрелки
             window.addEventListener('keydown', (e) => {
                 if(!this.state.alive) return;
                 const key = e.key.toLowerCase();
@@ -129,7 +140,6 @@
                 }
             });
 
-            // МОБИЛЬНОЕ УПРАВЛЕНИЕ (Свайпы)
             window.addEventListener('touchstart', (e) => {
                 this.touchStart.x = e.touches[0].clientX;
                 this.touchStart.y = e.touches[0].clientY;
@@ -161,11 +171,8 @@
                 if(seg.position.z > CONFIG.segmentLength) seg.position.z -= CONFIG.segmentLength * this.mapSegments.length;
             });
 
-            // Движение игрока
             const targetX = (this.state.lane - 1) * CONFIG.laneWidth;
             this.assets.player.position.x += (targetX - this.assets.player.position.x) * 0.18;
-
-            // КАМЕРА СЛЕДУЕТ ЗА ИГРОКОМ: жесткая привязка по оси X
             this.camera.position.x = this.assets.player.position.x;
 
             if(this.state.jumping) {
@@ -177,7 +184,6 @@
                 }
             }
 
-            // СПАВН: Быстрый старт (1 сек) и частый спавн
             if(time - this.lastSpawnTime > 1150) { 
                 let lanes = [0, 1, 2];
                 lanes.sort(() => Math.random() - 0.5);
@@ -197,7 +203,6 @@
                 coin.scale.set(5.5, 5.5, 5.5);
                 this.scene.add(coin);
                 this.coins.push(coin);
-
                 this.lastSpawnTime = time;
             }
 
@@ -226,12 +231,13 @@
                 if(c.position.z > 500) { this.scene.remove(c); this.coins.splice(i, 1); }
             });
 
-            // Направляем взгляд чуть впереди игрока
             this.camera.lookAt(this.assets.player.position.x, CONFIG.groundY + 30, -500);
             this.renderer.render(this.scene, this.camera);
         }
     }
-    new SubwayGame();
+
+    // 3. Запуск только после загрузки окна, чтобы не было ошибки appendChild
+    window.onload = () => { new SubwayGame(); };
 </script>
 </body>
 </html>
