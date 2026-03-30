@@ -2,207 +2,242 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Subway Surf 3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Subway: Camera Follow & Pro Zoom</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87ceeb; }
-        canvas { display: block; }
-        #loading {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            font-family: Arial, sans-serif; font-size: 24px; color: white;
-            background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px;
-        }
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
+        #ui { position: absolute; top: 5%; width: 100%; text-align: center; z-index: 100; pointer-events: none; }
+        #score-box { display: inline-block; background: rgba(0,0,0,0.85); padding: 10px 25px; border-radius: 50px; color: #ffcc00; font-size: 28px; font-family: 'Arial Black', sans-serif; border: 3px solid #ffcc00; }
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; color: #fff; display: flex; justify-content: center; align-items: center; z-index: 1000; font-family: sans-serif; }
     </style>
 </head>
 <body>
-    <div id="loading">ЗАГРУЗКА ИГРЫ...</div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
+<div id="loading">НАСТРОЙКА ОБЗОРА...</div>
+<div id="ui"><div id="score-box">СЧЕТ: <span id="score">0</span></div></div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'; // 1. Добавили импорт Draco
+
+    const CONFIG = {
+        groundY: 125,
+        laneWidth: 31.0, 
+        speed: 8.2,
+        jumpForce: 1.85,
+        gravity: 0.08,
+        segmentLength: 800,
+        spawnZ: -3500,
+        playerScale: 8.5
+    };
+
+    class SubwayGame {
+        constructor() {
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0x87CEEB); 
+            this.scene.fog = new THREE.Fog(0x87CEEB, 250, 1800);
+
+            this.camera = new THREE.PerspectiveCamera(85, window.innerWidth / window.innerHeight, 0.1, 10000);
+            this.camera.position.set(0, CONFIG.groundY + 37, 58); 
+
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(this.renderer.domElement);
+
+            this.assets = {};
+            this.trains = [];
+            this.coins = [];
+            this.mapSegments = [];
+            this.lastSpawnTime = 0;
+            this.state = { lane: 1, score: 0, alive: true, vY: 0, jumping: false };
+            this.touchStart = { x: 0, y: 0 };
+
+            this.initLights();
+            this.initLoaders(); // 2. Метод для настройки Draco
+            this.load();
+            this.bindControls();
+            window.addEventListener('resize', () => this.onResize());
         }
-    </script>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+        // Настраиваем Draco, чтобы сжатый файл character.glb открылся
+        initLoaders() {
+            const dracoLoader = new DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+            this.loader = new GLTFLoader();
+            this.loader.setDRACOLoader(dracoLoader);
+        }
 
-        const CONFIG = {
-            laneWidth: 150,
-            jumpForce: 15,
-            gravity: 0.8,
-            moveSpeed: 10,
-            spawnZ: -3000,
-            groundY: 0
-        };
+        onResize() {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
 
-        class SubwayGame {
-            constructor() {
-                this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x87ceeb);
-                
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-                this.camera.position.set(0, 250, 600);
-                this.camera.lookAt(0, 150, 0);
+        initLights() {
+            this.scene.add(new THREE.AmbientLight(0xffffff, 2.5));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+            sun.position.set(50, 500, 100);
+            this.scene.add(sun);
+        }
 
-                this.renderer = new THREE.WebGLRenderer({ antialias: true });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.setPixelRatio(window.devicePixelRatio);
-                document.body.appendChild(this.renderer.domElement);
+        async load() {
+            try {
+                // Используем наш настроенный this.loader вместо локального
+                const [char, tr, str, tun, c] = await Promise.all([
+                    this.loader.loadAsync('character.glb'),
+                    this.loader.loadAsync('train.glb'),
+                    this.loader.loadAsync('street.glb'),
+                    this.loader.loadAsync('tunnel.glb'),
+                    this.loader.loadAsync('coin.glb')
+                ]);
 
-                this.player = null;
-                this.lane = 1; // 0, 1, 2
-                this.isJumping = false;
-                this.velocity = 0;
-                this.assets = {};
-                this.trains = [];
-                this.coins = [];
-                this.lastSpawnTime = 0;
+                this.assets.player = char.scene;
+                this.assets.player.scale.set(CONFIG.playerScale, CONFIG.playerScale, CONFIG.playerScale);
+                this.assets.player.position.set(0, CONFIG.groundY, 0); 
+                this.assets.player.rotation.y = Math.PI;
+                this.scene.add(this.assets.player);
 
-                this.initLoaders();
-                this.initLights();
-                this.loadModels();
-                this.setupControls();
-            }
+                this.mixer = new THREE.AnimationMixer(this.assets.player);
+                if(char.animations[0]) this.mixer.clipAction(char.animations[0]).play();
 
-            initLoaders() {
-                // Настройка Draco для сжатых моделей
-                const dracoLoader = new DRACOLoader();
-                dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-                
-                this.loader = new GLTFLoader();
-                this.loader.setDRACOLoader(dracoLoader);
-            }
+                this.assets.train = tr.scene;
+                this.assets.street = str.scene;
+                this.assets.tunnel = tun.scene;
+                this.assets.coin = c.scene;
 
-            initLights() {
-                const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-                sun.position.set(100, 500, 100);
-                this.scene.add(sun);
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            }
-
-            async loadModels() {
-                try {
-                    const models = ['character', 'train', 'street', 'tunnel', 'coin'];
-                    for (const name of models) {
-                        const gltf = await this.loader.loadAsync(`${name}.glb`);
-                        this.assets[name] = gltf.scene;
-                    }
-
-                    this.setupPlayer();
-                    this.createEnvironment();
-                    document.getElementById('loading').style.display = 'none';
-                    this.animate();
-                } catch (error) {
-                    console.error('Ошибка загрузки:', error);
-                }
-            }
-
-            setupPlayer() {
-                this.player = this.assets.character;
-                this.player.scale.set(8.5, 8.5, 8.5);
-                this.player.position.set(0, CONFIG.groundY, 0);
-                this.scene.add(this.player);
-            }
-
-            createEnvironment() {
-                const street = this.assets.street;
-                street.scale.set(10, 10, 10);
-                this.scene.add(street);
-
-                const tunnel = this.assets.tunnel;
-                tunnel.scale.set(10, 10, 10);
-                tunnel.position.z = -1500;
-                this.scene.add(tunnel);
-            }
-
-            setupControls() {
-                window.addEventListener('keydown', (e) => {
-                    if (e.key === 'ArrowLeft' && this.lane > 0) this.lane--;
-                    if (e.key === 'ArrowRight' && this.lane < 2) this.lane++;
-                    if ((e.key === 'ArrowUp' || e.key === ' ') && !this.isJumping) {
-                        this.isJumping = true;
-                        this.velocity = CONFIG.jumpForce;
-                    }
-                });
-            }
-
-            animate(time = 0) {
-                requestAnimationFrame((t) => this.animate(t));
-
-                if (!this.player) return;
-
-                // Движение игрока по линиям
-                const targetX = (this.lane - 1) * CONFIG.laneWidth;
-                this.player.position.x += (targetX - this.player.position.x) * 0.2;
-
-                // Прыжок
-                if (this.isJumping) {
-                    this.player.position.y += this.velocity;
-                    this.velocity -= CONFIG.gravity;
-                    if (this.player.position.y <= CONFIG.groundY) {
-                        this.player.position.y = CONFIG.groundY;
-                        this.isJumping = false;
-                    }
+                for(let i = 0; i < 8; i++) {
+                    const isTunnel = i > 4;
+                    const model = isTunnel ? this.assets.tunnel.clone() : this.assets.street.clone();
+                    model.scale.set(1.5, 1.5, 1.5);
+                    model.position.set(-170, 0, -i * CONFIG.segmentLength); 
+                    this.scene.add(model);
+                    this.mapSegments.push(model);
                 }
 
-                // СПАВН: Быстрый старт и запрет на 3 вагона в ряд
-                if(time - this.lastSpawnTime > 1150 || (this.lastSpawnTime === 0 && time > 100)) { 
-                    let lanes = [0, 1, 2];
-                    lanes.sort(() => Math.random() - 0.5);
-                    
-                    // Максимум 2 вагона, чтобы всегда был проход
-                    const count = Math.random() > 0.5 ? 2 : 1; 
-
-                    for(let i = 0; i < count; i++) {
-                        const train = this.assets.train.clone();
-                        train.position.set((lanes[i] - 1) * CONFIG.laneWidth, CONFIG.groundY, CONFIG.spawnZ);
-                        train.rotation.y = Math.PI;
-                        this.scene.add(train);
-                        this.trains.push(train);
-                    }
-
-                    // Монетка на свободную линию
-                    const coinLane = lanes[2]; 
-                    const coin = this.assets.coin.clone();
-                    coin.position.set((coinLane - 1) * CONFIG.laneWidth, CONFIG.groundY + 15, CONFIG.spawnZ + 400);
-                    coin.scale.set(5.5, 5.5, 5.5);
-                    this.scene.add(coin);
-                    this.coins.push(coin);
-
-                    this.lastSpawnTime = time;
-                }
-
-                // Движение объектов
-                this.trains.forEach((train, index) => {
-                    train.position.z += CONFIG.moveSpeed * 2;
-                    if (train.position.z > 1000) {
-                        this.scene.remove(train);
-                        this.trains.splice(index, 1);
-                    }
-                });
-
-                this.coins.forEach((coin, index) => {
-                    coin.position.z += CONFIG.moveSpeed * 2;
-                    coin.rotation.y += 0.05;
-                    if (coin.position.z > 1000) {
-                        this.scene.remove(coin);
-                        this.coins.splice(index, 1);
-                    }
-                });
-
-                this.renderer.render(this.scene, this.camera);
+                document.getElementById('loading').style.display = 'none';
+                this.animate(0);
+            } catch (err) { 
+                console.error("Ошибка загрузки:", err);
+                document.getElementById('loading').innerText = "ОШИБКА ФАЙЛОВ!";
             }
         }
 
-        // ЗАПУСК ПОСЛЕ ЗАГРУЗКИ ОКНА
-        window.onload = () => {
-            new SubwayGame();
-        };
-    </script>
+        bindControls() {
+            window.addEventListener('keydown', (e) => {
+                if(!this.state.alive) return;
+                const key = e.key.toLowerCase();
+                if((key === 'a' || e.key === 'ArrowLeft') && this.state.lane > 0) this.state.lane--;
+                if((key === 'd' || e.key === 'ArrowRight') && this.state.lane < 2) this.state.lane++;
+                if((key === ' ' || key === 'w' || e.key === 'ArrowUp') && !this.state.jumping) {
+                    this.state.jumping = true;
+                    this.state.vY = CONFIG.jumpForce;
+                }
+            });
+
+            window.addEventListener('touchstart', (e) => {
+                this.touchStart.x = e.touches[0].clientX;
+                this.touchStart.y = e.touches[0].clientY;
+            });
+
+            window.addEventListener('touchend', (e) => {
+                const dx = e.changedTouches[0].clientX - this.touchStart.x;
+                const dy = e.changedTouches[0].clientY - this.touchStart.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (Math.abs(dx) > 30) {
+                        if (dx > 0 && this.state.lane < 2) this.state.lane++;
+                        else if (dx < 0 && this.state.lane > 0) this.state.lane--;
+                    }
+                } else if (dy < -30 && !this.state.jumping) {
+                    this.state.jumping = true;
+                    this.state.vY = CONFIG.jumpForce;
+                }
+            });
+        }
+
+        animate(time) {
+            if(!this.state.alive) return;
+            requestAnimationFrame((t) => this.animate(t));
+
+            if(this.mixer) this.mixer.update(0.016);
+
+            this.mapSegments.forEach(seg => {
+                seg.position.z += CONFIG.speed;
+                if(seg.position.z > CONFIG.segmentLength) seg.position.z -= CONFIG.segmentLength * this.mapSegments.length;
+            });
+
+            const targetX = (this.state.lane - 1) * CONFIG.laneWidth;
+            this.assets.player.position.x += (targetX - this.assets.player.position.x) * 0.18;
+            this.camera.position.x = this.assets.player.position.x;
+
+            if(this.state.jumping) {
+                this.assets.player.position.y += this.state.vY;
+                this.state.vY -= CONFIG.gravity;
+                if(this.assets.player.position.y <= CONFIG.groundY) {
+                    this.assets.player.position.y = CONFIG.groundY;
+                    this.state.jumping = false;
+                }
+            }
+
+            if(time - this.lastSpawnTime > 1150) { 
+                let lanes = [0, 1, 2];
+                lanes.sort(() => Math.random() - 0.5);
+                const count = Math.random() > 0.6 ? 2 : 1; 
+
+                for(let i = 0; i < count; i++) {
+                    const train = this.assets.train.clone();
+                    train.position.set((lanes[i] - 1) * CONFIG.laneWidth, CONFIG.groundY, CONFIG.spawnZ);
+                    train.rotation.y = Math.PI;
+                    this.scene.add(train);
+                    this.trains.push(train);
+                }
+
+                const coinLane = lanes[2]; 
+                const coin = this.assets.coin.clone();
+                coin.position.set((coinLane - 1) * CONFIG.laneWidth, CONFIG.groundY + 15, CONFIG.spawnZ + 400);
+                coin.scale.set(5.5, 5.5, 5.5);
+                this.scene.add(coin);
+                this.coins.push(coin);
+                this.lastSpawnTime = time;
+            }
+
+            this.trains.forEach((t, i) => {
+                t.position.z += CONFIG.speed + 2.5;
+                if(Math.abs(t.position.z - this.assets.player.position.z) < 32 && 
+                   Math.abs(t.position.x - this.assets.player.position.x) < 12 &&
+                   this.assets.player.position.y < CONFIG.groundY + 22) {
+                    this.state.alive = false;
+                    alert("КОНЕЦ ИГРЫ! Счёт: " + this.state.score);
+                    location.reload();
+                }
+                if(t.position.z > 500) { this.scene.remove(t); this.trains.splice(i, 1); }
+            });
+
+            this.coins.forEach((c, i) => {
+                c.position.z += CONFIG.speed;
+                c.rotation.y += 0.06;
+                if(Math.abs(c.position.z - this.assets.player.position.z) < 22 && 
+                   Math.abs(c.position.x - this.assets.player.position.x) < 16) {
+                    this.state.score += 10;
+                    document.getElementById('score').innerText = this.state.score;
+                    this.scene.remove(c);
+                    this.coins.splice(i, 1);
+                }
+                if(c.position.z > 500) { this.scene.remove(c); this.coins.splice(i, 1); }
+            });
+
+            this.camera.lookAt(this.assets.player.position.x, CONFIG.groundY + 30, -500);
+            this.renderer.render(this.scene, this.camera);
+        }
+    }
+
+    // 3. Запуск только после загрузки окна, чтобы не было ошибки appendChild
+    window.onload = () => { new SubwayGame(); };
+</script>
 </body>
 </html>
