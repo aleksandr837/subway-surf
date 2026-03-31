@@ -3,24 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Subway: Click to Start</title>
+    <title>Subway Surfers Mobile</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; }
-        #ui { position: absolute; top: 5%; width: 100%; text-align: center; z-index: 100; pointer-events: none; }
-        #score-box { display: inline-block; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 30px; color: #fff; font-family: sans-serif; font-weight: bold; border: 2px solid #fff; }
-        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; font-family: sans-serif; cursor: pointer; }
-        #overlay h1 { font-size: 48px; margin-bottom: 10px; color: #ffcc00; }
-        #overlay p { font-size: 20px; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; }
+        
+        .full-screen { position: fixed; inset: 0; z-index: 1000; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .full-screen img { width: 100%; height: 100%; object-fit: contain; }
+
+        #progress-container { position: absolute; bottom: 3%; width: 220px; height: 10px; background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #progress-bar { width: 0%; height: 100%; background: #ffcc00; transition: width 0.3s; }
+        #progress-text { position: absolute; bottom: 5%; color: #fff; font-size: 14px; text-shadow: 1px 1px #000; }
+
+        #game-ui { position: absolute; top: 0; width: 100%; z-index: 100; display: none; pointer-events: none; }
+        .stat-box { position: absolute; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #fff; color: #fff; font-size: 16px; top: 2px; display: flex; align-items: center; }
+        
+        /* ОБЪЕМНЫЕ CSS-ИКОНКИ ДЛЯ ВЕРХНЕГО ХУДА */
+        .coin-icon {
+            width: 18px; 
+            height: 18px; 
+            background: radial-gradient(circle at 35% 35%, #fff9c4 0%, #ffeb3b 40%, #fbc02d 70%, #f57f17 100%);
+            border-radius: 50%;
+            border: 2px solid #a1811a;
+            box-shadow: inset 0 0 3px rgba(255,255,255,0.8), 2px 2px 3px rgba(0,0,0,0.6);
+            margin-right: 6px; 
+        }
+
+        .star-icon {
+            width: 16px;
+            height: 16px;
+            background: radial-gradient(circle at 30% 30%, #fff 0%, #f1f8e9 60%, #c0ca33 100%);
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            margin-right: 6px;
+        }
+
+        /* ЭКРАН ПРОИГРЫША */
+        #fail-stats { 
+            position: absolute; 
+            top: 20%; 
+            width: 100%; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none; 
+            z-index: 1105; 
+        }
+        
+        #final-score { 
+            font-size: 50px; 
+            margin-bottom: -1px; 
+            padding-top: 5px; 
+            color: #fff;
+            text-shadow: 3px 3px #000; 
+        }
+        
+        #final-coins { 
+            font-size: 38px; 
+            color: #ffcc00; 
+            text-shadow: 2px 2px #000;
+        }
+        
+        #restart-btn { position: absolute; bottom: 10%; width: 320px; height: 140px; cursor: pointer; z-index: 2000; background: transparent; }
     </style>
 </head>
 <body>
 
-<div id="overlay">
-    <h1 id="status">ЗАГРУЗКА...</h1>
-    <p id="sub-status">Подожди пару секунд</p>
+<div id="loading-screen" class="full-screen">
+    <img src="start.jpg">
+    <div id="progress-text">0%</div>
+    <div id="progress-container"><div id="progress-bar"></div></div>
 </div>
 
-<div id="ui"><div id="score-box">СЧЕТ: <span id="score">0</span></div></div>
+<div id="game-ui">
+    <div id="score-container" class="stat-box"><div class="star-icon"></div> <span id="cur-score">0</span></div>
+    <div id="coin-container" class="stat-box"><div class="coin-icon"></div> <span id="cur-coins">0</span></div>
+</div>
+
+<div id="fail-screen" class="full-screen" style="display: none; z-index: 1100;">
+    <img src="fail.jpg">
+    <div id="fail-stats">
+        <div id="final-score">0</div>
+        <div id="final-coins">0</div>
+    </div>
+    <div id="restart-btn" onpointerdown="location.reload()"></div>
+</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
@@ -29,106 +94,125 @@
 <script type="module">
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
     const CONFIG = {
-        groundY: 125,
-        laneWidth: 32,
-        speed: 9.0,
-        jumpForce: 1.8,
-        gravity: 0.08,
-        spawnZ: -1200,
-        playerScale: 8.5
+        groundY: 125, laneWidth: 31, speed: 8.5, jumpForce: 1.9, gravity: 0.08,
+        segmentLength: 800, spawnZ: -900, playerScale: 8.5
     };
 
-    class Game {
+    class SubwayGame {
         constructor() {
             this.scene = new THREE.Scene();
-            this.scene.background = new THREE.Color(0x87CEEB);
-            this.scene.fog = new THREE.Fog(0x87CEEB, 200, 2000);
-
-            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 5000);
-            this.camera.position.set(0, CONFIG.groundY + 40, 70);
-
+            this.scene.background = new THREE.Color(0x4488aa);
+            this.scene.fog = new THREE.Fog(0x4488aa, 50, 1000);
+            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+            this.camera.position.set(0, CONFIG.groundY + 26, 48);
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.renderer.setSize(window.innerWidth, window.innerHeight);
             this.renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(this.renderer.domElement);
 
-            this.assets = {};
-            this.trains = [];
-            this.state = { lane: 1, score: 0, alive: true, vY: 0, jumping: false, started: false };
-            
+            this.state = { score: 0, coins: 0, alive: true, lane: 1, vY: 0, jumping: false };
+            this.assets = {}; this.trains = []; this.coins = []; this.mapSegments = [];
+            this.lastSpawnTime = 0;
             this.init();
-            this.load();
         }
 
-        init() {
-            this.scene.add(new THREE.AmbientLight(0xffffff, 2.5));
-            const floor = new THREE.Mesh(
-                new THREE.PlaneGeometry(200, 10000),
-                new THREE.MeshBasicMaterial({ color: 0x444444 })
-            );
-            floor.rotation.x = -Math.PI / 2;
-            floor.position.y = CONFIG.groundY - 1;
-            this.scene.add(floor);
+        async init() {
+            const manager = new THREE.LoadingManager();
+            const loader = new GLTFLoader(manager);
+            const dracoLoader = new DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+            loader.setDRACOLoader(dracoLoader);
+
+            manager.onProgress = (u, l, t) => {
+                const p = Math.floor((l / t) * 100);
+                document.getElementById('progress-bar').style.width = p + '%';
+                document.getElementById('progress-text').innerText = p + '%';
+            };
+
+            manager.onLoad = () => {
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                    document.getElementById('game-ui').style.display = 'block';
+                    this.bindControls();
+                    this.animate(0);
+                }, 600);
+            };
+
+            const load = (p) => new Promise(res => loader.load(p, res));
+            try {
+                const [char, str, tun, tr, cn] = await Promise.all([
+                    load('character.glb'), load('street.glb'), load('tunnel.glb'), load('train.glb'), load('coin.glb')
+                ]);
+                this.assets = { player: char.scene, street: str.scene, tunnel: tun.scene, train: tr.scene, coin: cn.scene };
+                this.setupPlayer(char);
+                this.setupWorld();
+            } catch(e) { console.error(e); }
         }
 
-        load() {
-            const loader = new GLTFLoader();
-            // Загружаем всё по отдельности
-            const p1 = loader.loadAsync('character.glb').then(g => {
-                this.assets.player = g.scene;
-                this.assets.player.scale.set(CONFIG.playerScale, CONFIG.playerScale, CONFIG.playerScale);
-                this.assets.player.position.y = CONFIG.groundY;
-                this.assets.player.rotation.y = Math.PI;
-                this.scene.add(this.assets.player);
-                this.mixer = new THREE.AnimationMixer(this.assets.player);
-                if(g.animations[0]) this.mixer.clipAction(g.animations[0]).play();
-            });
-
-            const p2 = loader.loadAsync('train.glb').then(g => { this.assets.train = g.scene; });
-            
-            Promise.all([p1, p2]).then(() => {
-                const overlay = document.getElementById('overlay');
-                document.getElementById('status').innerText = "ГОТОВО!";
-                document.getElementById('sub-status').innerText = "Нажми сюда, чтобы начать бег";
-                
-                // СПАВНИМ ПОЕЗДА ЗАРАНЕЕ, пока игра на паузе
-                this.spawnTrain(-600);
-                this.spawnTrain(-1200);
-
-                overlay.onclick = () => {
-                    overlay.style.display = 'none';
-                    this.state.started = true;
-                    this.animate();
-                };
-            });
+        setupPlayer(gltf) {
+            this.assets.player.scale.set(CONFIG.playerScale, CONFIG.playerScale, CONFIG.playerScale);
+            this.assets.player.position.set(0, CONFIG.groundY, 0);
+            this.assets.player.rotation.y = Math.PI;
+            this.scene.add(this.assets.player);
+            this.mixer = new THREE.AnimationMixer(this.assets.player);
+            if(gltf.animations[0]) this.mixer.clipAction(gltf.animations[0]).play();
         }
 
-        spawnTrain(z) {
-            const lane = Math.floor(Math.random() * 3);
-            const group = new THREE.Group();
-            group.position.set((lane - 1) * CONFIG.laneWidth, CONFIG.groundY, z);
-            
-            if (this.assets.train) {
-                const model = this.assets.train.clone();
-                model.rotation.y = Math.PI;
-                group.add(model);
+        setupWorld() {
+            this.scene.add(new THREE.AmbientLight(0xffffff, 2.8));
+            for(let i = 0; i < 6; i++) {
+                const m = (i < 4 ? this.assets.street : this.assets.tunnel).clone();
+                m.scale.set(1.5, 1.5, 1.5);
+                m.position.set(-170, 0, -i * CONFIG.segmentLength);
+                this.scene.add(m);
+                this.mapSegments.push(m);
             }
-            this.scene.add(group);
-            this.trains.push({ obj: group, lane: lane });
         }
 
-        animate() {
-            if(!this.state.alive || !this.state.started) return;
-            requestAnimationFrame(() => this.animate());
-            
-            if(this.mixer) this.mixer.update(0.016);
+        bindControls() {
+            window.addEventListener('keydown', (e) => {
+                if(!this.state.alive) return;
+                if((e.code === 'ArrowLeft' || e.code === 'KeyA') && this.state.lane > 0) this.state.lane--;
+                if((e.code === 'ArrowRight' || e.code === 'KeyD') && this.state.lane < 2) this.state.lane++;
+                if((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && !this.state.jumping) {
+                    this.state.jumping = true; this.state.vY = CONFIG.jumpForce;
+                }
+            });
 
-            // Игрок
-            const targetX = (this.state.lane - 1) * CONFIG.laneWidth;
-            this.assets.player.position.x += (targetX - this.assets.player.position.x) * 0.15;
-            
+            let sX, sY;
+            window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; }, {passive: false});
+            window.addEventListener('touchend', e => {
+                if(!this.state.alive) return;
+                const dx = e.changedTouches[0].clientX - sX;
+                const dy = e.changedTouches[0].clientY - sY;
+                if(Math.abs(dx) > Math.abs(dy)) {
+                    if(dx > 30 && this.state.lane < 2) this.state.lane++;
+                    if(dx < -30 && this.state.lane > 0) this.state.lane--;
+                } else if(dy < -40 && !this.state.jumping) {
+                    this.state.jumping = true; this.state.vY = CONFIG.jumpForce;
+                }
+            }, {passive: false});
+        }
+
+        animate(time) {
+            if(!this.state.alive) return;
+            requestAnimationFrame(t => this.animate(t));
+            if(this.mixer) this.mixer.update(0.016);
+            this.state.score += 1;
+            document.getElementById('cur-score').innerText = Math.floor(this.state.score / 5); 
+
+            this.mapSegments.forEach(s => {
+                s.position.z += CONFIG.speed;
+                if(s.position.z > CONFIG.segmentLength) s.position.z -= CONFIG.segmentLength * 6;
+            });
+
+            const tx = (this.state.lane - 1) * CONFIG.laneWidth;
+            this.assets.player.position.x += (tx - this.assets.player.position.x) * 0.15;
+            this.camera.position.x = this.assets.player.position.x * 0.8;
+
             if(this.state.jumping) {
                 this.assets.player.position.y += this.state.vY;
                 this.state.vY -= CONFIG.gravity;
@@ -138,43 +222,57 @@
                 }
             }
 
-            // Движение и коллизии
-            this.trains.forEach((t, i) => {
-                t.obj.position.z += CONFIG.speed;
-
-                if(Math.abs(t.obj.position.z) < 30 && t.lane === this.state.lane && this.assets.player.position.y < CONFIG.groundY + 20) {
-                    this.state.alive = false;
-                    alert("ИГРА ОКОНЧЕНА! СЧЕТ: " + this.state.score);
-                    location.reload();
+            if(time - this.lastSpawnTime > 1200) {
+                const safeLane = Math.floor(Math.random() * 3); 
+                [0,1,2].forEach(l => {
+                    if(l !== safeLane && Math.random() > 0.4) {
+                        const t = this.assets.train.clone();
+                        t.position.set((l-1)*CONFIG.laneWidth, CONFIG.groundY, CONFIG.spawnZ);
+                        t.rotation.y = Math.PI;
+                        this.scene.add(t);
+                        this.trains.push(t);
+                    }
+                });
+                
+                for(let i = 0; i < 5; i++) {
+                    const c = this.assets.coin.clone();
+                    c.position.set((safeLane-1)*CONFIG.laneWidth, CONFIG.groundY + 5, CONFIG.spawnZ + 300 - (i * 45)); 
+                    c.scale.set(35, 35, 35); 
+                    this.scene.add(c);
+                    this.coins.push(c);
                 }
+                this.lastSpawnTime = time;
+            }
 
-                if(t.obj.position.z > 200) {
-                    this.scene.remove(t.obj);
-                    this.trains.splice(i, 1);
-                    this.state.score += 10;
-                    document.getElementById('score').innerText = this.state.score;
-                    this.spawnTrain(CONFIG.spawnZ);
+            this.trains.forEach((t, i) => {
+                t.position.z += CONFIG.speed + 3;
+                if(Math.abs(t.position.z - this.assets.player.position.z) < 35 && Math.abs(t.position.x - this.assets.player.position.x) < 15 && this.assets.player.position.y < CONFIG.groundY + 25) this.gameOver();
+                if(t.position.z > 200) { this.scene.remove(t); this.trains.splice(i,1); }
+            });
+
+            this.coins.forEach((c, i) => {
+                c.position.z += CONFIG.speed;
+                c.rotation.y += 0.05; 
+                if(Math.abs(c.position.z - this.assets.player.position.z) < 25 && Math.abs(c.position.x - this.assets.player.position.x) < 20) {
+                    this.state.coins++;
+                    document.getElementById('cur-coins').innerText = this.state.coins;
+                    this.scene.remove(c); this.coins.splice(i,1);
                 }
             });
 
+            this.camera.lookAt(this.assets.player.position.x, CONFIG.groundY + 20, -300);
             this.renderer.render(this.scene, this.camera);
         }
 
-        bind() {
-            window.addEventListener('keydown', e => {
-                const k = e.key.toLowerCase();
-                if((k==='a'||e.code==='ArrowLeft') && this.state.lane > 0) this.state.lane--;
-                if((k==='d'||e.code==='ArrowRight') && this.state.lane < 2) this.state.lane++;
-                if((k===' '||k==='w') && !this.state.jumping) {
-                    this.state.jumping = true; 
-                    this.state.vY = CONFIG.jumpForce;
-                }
-            });
+        gameOver() {
+            this.state.alive = false;
+            document.getElementById('game-ui').style.display = 'none';
+            document.getElementById('fail-screen').style.display = 'flex';
+            document.getElementById('final-score').innerText = Math.floor(this.state.score / 5);
+            document.getElementById('final-coins').innerText = this.state.coins;
         }
     }
-
-    const game = new Game();
-    game.bind();
+    new SubwayGame();
 </script>
 </body>
 </html>
