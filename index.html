@@ -63,17 +63,16 @@
             margin-right: 8px;
         }
 
-        /* Исправленная верстка статистики проигрыша - ЖЕСТКАЯ ПРИВЯЗКА К TOP */
         #fail-stats { 
             position: absolute; 
-            inset: 0; /* Блок на весь экран */
+            inset: 0; 
             pointer-events: none; 
             z-index: 1105; 
         }
         
         #final-score { 
             position: absolute;
-            top: 24%; /* НАМНОГО ВЫШЕ - жестко в синее поле */
+            top: 23.5%; /* Чуть выше в синее поле */
             left: 50%;
             transform: translateX(-50%);
             font-size: 45px;
@@ -84,7 +83,7 @@
         
         #final-coins { 
             position: absolute;
-            top: 36%; /* НАМНОГО ВЫШЕ - жестко в серое поле */
+            top: 33.5%; /* Поднажали выше в серое поле */
             left: 50%;
             transform: translateX(-50%);
             font-size: 32px; 
@@ -93,10 +92,9 @@
             margin: 0;
         }
         
-        /* Кнопка теперь намного выше, поверх "Начать заново" */
         #restart-btn { 
             position: absolute; 
-            bottom: 22%; /* ПОДНЯЛ КНОПКУ */
+            bottom: 22%; 
             left: 50%;
             transform: translateX(-50%);
             width: 70%; 
@@ -104,7 +102,7 @@
             height: 60px; 
             cursor: pointer; 
             z-index: 2000; 
-            background: rgba(255,255,255,0.01); /* Прозрачная, но активная */
+            background: rgba(255,255,255,0.01); 
         }
     </style>
 </head>
