@@ -7,79 +7,117 @@
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; }
         
-        .full-screen { position: fixed; inset: 0; z-index: 1000; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .full-screen img { width: 100%; height: 100%; object-fit: contain; }
+        /* Исправленные полноэкранные контейнеры */
+        .full-screen { 
+            position: fixed; 
+            inset: 0; 
+            z-index: 1000; 
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover; /* Растягивает фото на весь экран телефона */
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+        }
 
-        #progress-container { position: absolute; bottom: 3%; width: 220px; height: 10px; background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
+        #loading-screen { background-image: url('start.jpg'); }
+        #fail-screen { background-image: url('fail.jpg'); display: none; z-index: 1100; }
+
+        #progress-container { position: absolute; bottom: 8%; width: 70%; height: 12px; background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
         #progress-bar { width: 0%; height: 100%; background: #ffcc00; transition: width 0.3s; }
-        #progress-text { position: absolute; bottom: 5%; color: #fff; font-size: 14px; text-shadow: 1px 1px #000; }
+        #progress-text { position: absolute; bottom: 11%; color: #fff; font-size: 16px; text-shadow: 2px 2px #000; }
 
-        #game-ui { position: absolute; top: 0; width: 100%; z-index: 100; display: none; pointer-events: none; }
-        .stat-box { position: absolute; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 20px; border: 1px solid #fff; color: #fff; font-size: 16px; top: 2px; display: flex; align-items: center; }
-        
-        /* ОБЪЕМНЫЕ CSS-ИКОНКИ ДЛЯ ВЕРХНЕГО ХУДА */
+        /* Игровой интерфейс: разносим элементы по углам */
+        #game-ui { 
+            position: absolute; 
+            top: 15px; 
+            left: 0;
+            width: 100%; 
+            padding: 0 15px;
+            box-sizing: border-box;
+            z-index: 100; 
+            display: none; 
+            pointer-events: none; 
+            display: flex;
+            justify-content: space-between; /* Очки слева, монеты справа */
+            align-items: flex-start;
+        }
+
+        .stat-box { 
+            background: rgba(0,0,0,0.6); 
+            padding: 6px 14px; 
+            border-radius: 20px; 
+            border: 1px solid #fff; 
+            color: #fff; 
+            font-size: 18px; 
+            display: flex; 
+            align-items: center; 
+        }
+
+        #coin-container { color: #ffcc00; border-color: #ffcc00; }
+
         .coin-icon {
-            width: 18px; 
-            height: 18px; 
+            width: 20px; 
+            height: 20px; 
             background: radial-gradient(circle at 35% 35%, #fff9c4 0%, #ffeb3b 40%, #fbc02d 70%, #f57f17 100%);
             border-radius: 50%;
             border: 2px solid #a1811a;
-            box-shadow: inset 0 0 3px rgba(255,255,255,0.8), 2px 2px 3px rgba(0,0,0,0.6);
-            margin-right: 6px; 
+            margin-right: 8px; 
         }
 
         .star-icon {
-            width: 16px;
-            height: 16px;
-            background: radial-gradient(circle at 30% 30%, #fff 0%, #f1f8e9 60%, #c0ca33 100%);
+            width: 18px;
+            height: 18px;
+            background: #fff;
             clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-            margin-right: 6px;
+            margin-right: 8px;
         }
 
-        /* ЭКРАН ПРОИГРЫША */
+        /* Центрирование статистики при проигрыше */
         #fail-stats { 
             position: absolute; 
-            top: 20%; 
+            top: 25%; 
             width: 100%; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            text-align: center;
             pointer-events: none; 
             z-index: 1105; 
         }
         
-        #final-score { 
-            font-size: 50px; 
-            margin-bottom: -1px; 
-            padding-top: 5px; 
-            color: #fff;
-            text-shadow: 3px 3px #000; 
-        }
+        #final-score { font-size: 60px; color: #fff; text-shadow: 4px 4px #000; margin-bottom: 10px; }
+        #final-coins { font-size: 40px; color: #ffcc00; text-shadow: 3px 3px #000; }
         
-        #final-coins { 
-            font-size: 38px; 
-            color: #ffcc00; 
-            text-shadow: 2px 2px #000;
+        #restart-btn { 
+            position: absolute; 
+            bottom: 12%; 
+            width: 80%; 
+            max-width: 300px;
+            height: 80px; 
+            cursor: pointer; 
+            z-index: 2000; 
+            background: transparent; 
         }
-        
-        #restart-btn { position: absolute; bottom: 10%; width: 320px; height: 140px; cursor: pointer; z-index: 2000; background: transparent; }
     </style>
 </head>
 <body>
 
 <div id="loading-screen" class="full-screen">
-    <img src="start.jpg">
     <div id="progress-text">0%</div>
     <div id="progress-container"><div id="progress-bar"></div></div>
 </div>
 
 <div id="game-ui">
-    <div id="score-container" class="stat-box"><div class="star-icon"></div> <span id="cur-score">0</span></div>
-    <div id="coin-container" class="stat-box"><div class="coin-icon"></div> <span id="cur-coins">0</span></div>
+    <div id="score-container" class="stat-box">
+        <div class="star-icon"></div>
+        <span id="cur-score">0</span>
+    </div>
+    <div id="coin-container" class="stat-box">
+        <div class="coin-icon"></div>
+        <span id="cur-coins">0</span>
+    </div>
 </div>
 
-<div id="fail-screen" class="full-screen" style="display: none; z-index: 1100;">
-    <img src="fail.jpg">
+<div id="fail-screen" class="full-screen">
     <div id="fail-stats">
         <div id="final-score">0</div>
         <div id="final-coins">0</div>
@@ -110,7 +148,7 @@
             this.camera.position.set(0, CONFIG.groundY + 26, 48);
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Оптимизация для мобильных
             document.body.appendChild(this.renderer.domElement);
 
             this.state = { score: 0, coins: 0, alive: true, lane: 1, vY: 0, jumping: false };
@@ -135,7 +173,7 @@
             manager.onLoad = () => {
                 setTimeout(() => {
                     document.getElementById('loading-screen').style.display = 'none';
-                    document.getElementById('game-ui').style.display = 'block';
+                    document.getElementById('game-ui').style.display = 'flex';
                     this.bindControls();
                     this.animate(0);
                 }, 600);
@@ -147,43 +185,28 @@
                     load('character.glb'), load('street.glb'), load('tunnel.glb'), load('train.glb'), load('coin.glb')
                 ]);
                 this.assets = { player: char.scene, street: str.scene, tunnel: tun.scene, train: tr.scene, coin: cn.scene };
-                this.setupPlayer(char);
-                this.setupWorld();
+                
+                this.assets.player.scale.set(CONFIG.playerScale, CONFIG.playerScale, CONFIG.playerScale);
+                this.assets.player.position.set(0, CONFIG.groundY, 0);
+                this.assets.player.rotation.y = Math.PI;
+                this.scene.add(this.assets.player);
+                this.mixer = new THREE.AnimationMixer(this.assets.player);
+                if(char.animations[0]) this.mixer.clipAction(char.animations[0]).play();
+
+                this.scene.add(new THREE.AmbientLight(0xffffff, 2.8));
+                for(let i = 0; i < 6; i++) {
+                    const m = (i < 4 ? this.assets.street : this.assets.tunnel).clone();
+                    m.scale.set(1.5, 1.5, 1.5);
+                    m.position.set(-170, 0, -i * CONFIG.segmentLength);
+                    this.scene.add(m);
+                    this.mapSegments.push(m);
+                }
             } catch(e) { console.error(e); }
         }
 
-        setupPlayer(gltf) {
-            this.assets.player.scale.set(CONFIG.playerScale, CONFIG.playerScale, CONFIG.playerScale);
-            this.assets.player.position.set(0, CONFIG.groundY, 0);
-            this.assets.player.rotation.y = Math.PI;
-            this.scene.add(this.assets.player);
-            this.mixer = new THREE.AnimationMixer(this.assets.player);
-            if(gltf.animations[0]) this.mixer.clipAction(gltf.animations[0]).play();
-        }
-
-        setupWorld() {
-            this.scene.add(new THREE.AmbientLight(0xffffff, 2.8));
-            for(let i = 0; i < 6; i++) {
-                const m = (i < 4 ? this.assets.street : this.assets.tunnel).clone();
-                m.scale.set(1.5, 1.5, 1.5);
-                m.position.set(-170, 0, -i * CONFIG.segmentLength);
-                this.scene.add(m);
-                this.mapSegments.push(m);
-            }
-        }
-
         bindControls() {
-            window.addEventListener('keydown', (e) => {
-                if(!this.state.alive) return;
-                if((e.code === 'ArrowLeft' || e.code === 'KeyA') && this.state.lane > 0) this.state.lane--;
-                if((e.code === 'ArrowRight' || e.code === 'KeyD') && this.state.lane < 2) this.state.lane++;
-                if((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && !this.state.jumping) {
-                    this.state.jumping = true; this.state.vY = CONFIG.jumpForce;
-                }
-            });
-
             let sX, sY;
-            window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; }, {passive: false});
+            window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; });
             window.addEventListener('touchend', e => {
                 if(!this.state.alive) return;
                 const dx = e.changedTouches[0].clientX - sX;
@@ -194,13 +217,14 @@
                 } else if(dy < -40 && !this.state.jumping) {
                     this.state.jumping = true; this.state.vY = CONFIG.jumpForce;
                 }
-            }, {passive: false});
+            });
         }
 
         animate(time) {
             if(!this.state.alive) return;
             requestAnimationFrame(t => this.animate(t));
             if(this.mixer) this.mixer.update(0.016);
+            
             this.state.score += 1;
             document.getElementById('cur-score').innerText = Math.floor(this.state.score / 5); 
 
@@ -211,7 +235,6 @@
 
             const tx = (this.state.lane - 1) * CONFIG.laneWidth;
             this.assets.player.position.x += (tx - this.assets.player.position.x) * 0.15;
-            this.camera.position.x = this.assets.player.position.x * 0.8;
 
             if(this.state.jumping) {
                 this.assets.player.position.y += this.state.vY;
@@ -224,16 +247,6 @@
 
             if(time - this.lastSpawnTime > 1200) {
                 const safeLane = Math.floor(Math.random() * 3); 
-                [0,1,2].forEach(l => {
-                    if(l !== safeLane && Math.random() > 0.4) {
-                        const t = this.assets.train.clone();
-                        t.position.set((l-1)*CONFIG.laneWidth, CONFIG.groundY, CONFIG.spawnZ);
-                        t.rotation.y = Math.PI;
-                        this.scene.add(t);
-                        this.trains.push(t);
-                    }
-                });
-                
                 for(let i = 0; i < 5; i++) {
                     const c = this.assets.coin.clone();
                     c.position.set((safeLane-1)*CONFIG.laneWidth, CONFIG.groundY + 5, CONFIG.spawnZ + 300 - (i * 45)); 
@@ -244,15 +257,8 @@
                 this.lastSpawnTime = time;
             }
 
-            this.trains.forEach((t, i) => {
-                t.position.z += CONFIG.speed + 3;
-                if(Math.abs(t.position.z - this.assets.player.position.z) < 35 && Math.abs(t.position.x - this.assets.player.position.x) < 15 && this.assets.player.position.y < CONFIG.groundY + 25) this.gameOver();
-                if(t.position.z > 200) { this.scene.remove(t); this.trains.splice(i,1); }
-            });
-
             this.coins.forEach((c, i) => {
                 c.position.z += CONFIG.speed;
-                c.rotation.y += 0.05; 
                 if(Math.abs(c.position.z - this.assets.player.position.z) < 25 && Math.abs(c.position.x - this.assets.player.position.x) < 20) {
                     this.state.coins++;
                     document.getElementById('cur-coins').innerText = this.state.coins;
@@ -260,7 +266,6 @@
                 }
             });
 
-            this.camera.lookAt(this.assets.player.position.x, CONFIG.groundY + 20, -300);
             this.renderer.render(this.scene, this.camera);
         }
 
@@ -273,6 +278,9 @@
         }
     }
     new SubwayGame();
+
+    // Авто-ресайз при повороте экрана
+    window.addEventListener('resize', () => location.reload());
 </script>
 </body>
 </html>
