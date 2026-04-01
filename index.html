@@ -63,42 +63,48 @@
             margin-right: 8px;
         }
 
-        /* Исправленная верстка статистики проигрыша */
+        /* Исправленная верстка статистики проигрыша - ЖЕСТКАЯ ПРИВЯЗКА К TOP */
         #fail-stats { 
             position: absolute; 
-            top: 48%; /* Привязка к центру картинки */
-            left: 50%;
-            transform: translate(-50%, -50%); /* Центрируем блок */
-            width: 100%; 
-            text-align: center;
+            inset: 0; /* Блок на весь экран */
             pointer-events: none; 
             z-index: 1105; 
         }
         
         #final-score { 
-            font-size: 45px; /* Чуть меньше, чтобы влезало в синее поле */
+            position: absolute;
+            top: 24%; /* НАМНОГО ВЫШЕ - жестко в синее поле */
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 45px;
             color: #fff; 
             text-shadow: 3px 3px #000; 
-            margin-bottom: 25px; /* Отступ, чтобы попасть в синюю плашку */
+            margin: 0;
         }
         
         #final-coins { 
+            position: absolute;
+            top: 36%; /* НАМНОГО ВЫШЕ - жестко в серое поле */
+            left: 50%;
+            transform: translateX(-50%);
             font-size: 32px; 
             color: #ffcc00; 
             text-shadow: 2px 2px #000;
-            margin-top: 15px; /* Отступ, чтобы попасть в серую плашку */
+            margin: 0;
         }
         
-        /* Кнопка теперь точно поверх "Начать заново" */
+        /* Кнопка теперь намного выше, поверх "Начать заново" */
         #restart-btn { 
             position: absolute; 
-            bottom: 14%; 
+            bottom: 22%; /* ПОДНЯЛ КНОПКУ */
+            left: 50%;
+            transform: translateX(-50%);
             width: 70%; 
             max-width: 250px;
             height: 60px; 
             cursor: pointer; 
             z-index: 2000; 
-            background: rgba(255,255,255,0); /* Прозрачная, но активная */
+            background: rgba(255,255,255,0.01); /* Прозрачная, но активная */
         }
     </style>
 </head>
