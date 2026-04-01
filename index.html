@@ -17,10 +17,9 @@
             display: flex; 
             flex-direction: column; 
             align-items: center; 
-            justify-content: center; 
         }
 
-        #loading-screen { background-image: url('start.jpg'); }
+        #loading-screen { background-image: url('start.jpg'); justify-content: center; }
         #fail-screen { background-image: url('fail.jpg'); display: none; z-index: 1100; }
 
         #progress-container { position: absolute; bottom: 8%; width: 70%; height: 12px; background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 10px; overflow: hidden; }
@@ -39,7 +38,6 @@
             pointer-events: none; 
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
         }
 
         .stat-box { 
@@ -53,46 +51,54 @@
             align-items: center; 
         }
 
-        #coin-container { color: #ffcc00; border-color: #ffcc00; }
-
         .coin-icon {
-            width: 20px; 
-            height: 20px; 
+            width: 20px; height: 20px; 
             background: radial-gradient(circle at 35% 35%, #fff9c4 0%, #ffeb3b 40%, #fbc02d 70%, #f57f17 100%);
-            border-radius: 50%;
-            border: 2px solid #a1811a;
-            margin-right: 8px; 
+            border-radius: 50%; border: 2px solid #a1811a; margin-right: 8px; 
         }
 
         .star-icon {
-            width: 18px;
-            height: 18px;
-            background: #fff;
+            width: 18px; height: 18px; background: #fff;
             clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
             margin-right: 8px;
         }
 
+        /* Исправленная верстка статистики проигрыша */
         #fail-stats { 
             position: absolute; 
-            top: 25%; 
+            top: 48%; /* Привязка к центру картинки */
+            left: 50%;
+            transform: translate(-50%, -50%); /* Центрируем блок */
             width: 100%; 
             text-align: center;
             pointer-events: none; 
             z-index: 1105; 
         }
         
-        #final-score { font-size: 60px; color: #fff; text-shadow: 4px 4px #000; margin-bottom: 10px; }
-        #final-coins { font-size: 40px; color: #ffcc00; text-shadow: 3px 3px #000; }
+        #final-score { 
+            font-size: 45px; /* Чуть меньше, чтобы влезало в синее поле */
+            color: #fff; 
+            text-shadow: 3px 3px #000; 
+            margin-bottom: 25px; /* Отступ, чтобы попасть в синюю плашку */
+        }
         
+        #final-coins { 
+            font-size: 32px; 
+            color: #ffcc00; 
+            text-shadow: 2px 2px #000;
+            margin-top: 15px; /* Отступ, чтобы попасть в серую плашку */
+        }
+        
+        /* Кнопка теперь точно поверх "Начать заново" */
         #restart-btn { 
             position: absolute; 
-            bottom: 12%; 
-            width: 80%; 
-            max-width: 300px;
-            height: 80px; 
+            bottom: 14%; 
+            width: 70%; 
+            max-width: 250px;
+            height: 60px; 
             cursor: pointer; 
             z-index: 2000; 
-            background: transparent; 
+            background: rgba(255,255,255,0); /* Прозрачная, но активная */
         }
     </style>
 </head>
@@ -135,8 +141,6 @@
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x4488aa);
             this.scene.fog = new THREE.Fog(0x4488aa, 50, 1000);
-            
-            // Камера отодвинута чуть дальше (70 вместо 48) и выше (32 вместо 26) для обзора на телефоне
             this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
             this.camera.position.set(0, CONFIG.groundY + 32, 70); 
             
@@ -199,7 +203,6 @@
         }
 
         bindControls() {
-            // Управление клавиатурой (ПК)
             window.addEventListener('keydown', (e) => {
                 if(!this.state.alive) return;
                 if((e.code === 'ArrowLeft' || e.key === 'a') && this.state.lane > 0) this.state.lane--;
@@ -209,7 +212,6 @@
                 }
             });
 
-            // Управление свайпами (Телефон)
             let sX, sY;
             window.addEventListener('touchstart', e => { sX = e.touches[0].clientX; sY = e.touches[0].clientY; });
             window.addEventListener('touchend', e => {
@@ -253,7 +255,6 @@
 
             if(time - this.lastSpawnTime > 1200) {
                 const safeLane = Math.floor(Math.random() * 3);
-                // Возвращен спавн вагонов
                 [0,1,2].forEach(l => {
                     if(l !== safeLane && Math.random() > 0.4) {
                         const t = this.assets.train.clone();
@@ -282,7 +283,6 @@
 
             this.coins.forEach((c, i) => {
                 c.position.z += CONFIG.speed;
-                c.rotation.y += 0.05;
                 if(Math.abs(c.position.z - this.assets.player.position.z) < 25 && Math.abs(c.position.x - this.assets.player.position.x) < 20) {
                     this.state.coins++;
                     document.getElementById('cur-coins').innerText = this.state.coins;
