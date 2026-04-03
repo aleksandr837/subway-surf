@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Subway Surfers - 3 Train Types</title>
+    <title>Subway Surfers - Swipes & 3 Trains</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; touch-action: none; }
         .full-screen { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; background-size: cover; background-position: center; }
@@ -64,6 +64,9 @@
 
             this.state = { score: 1, coins: 0, alive: true, lane: 1, vY: 0, jumping: false }; 
             this.models = {}; this.obstacles = []; this.mapSegments = []; this.activeCoins = [];
+            
+            // Для свайпов
+            this.touchStart = { x: 0, y: 0 };
             this.init();
         }
 
@@ -76,10 +79,8 @@
             const assets = [
                 { id: 'player', path: 'character.glb' }, { id: 'street', path: 'street.glb' },
                 { id: 'tunnel', path: 'tunnel.glb' }, 
-                { id: 'c1', path: 'carriage1.glb' },
-                { id: 'c2', path: 'carriage2.glb' }, 
-                { id: 'c3', path: 'carriage3.glb' }, // Твой новый вагон
-                { id: 'coin', path: 'coin.glb' }
+                { id: 'c1', path: 'carriage1.glb' }, { id: 'c2', path: 'carriage2.glb' }, 
+                { id: 'c3', path: 'carriage3.glb' }, { id: 'coin', path: 'coin.glb' }
             ];
 
             const prgBar = document.getElementById('progress-bar');
@@ -87,14 +88,12 @@
 
             for (let i = 0; i < assets.length; i++) {
                 try {
-                    const gltf = await new Promise((res, rej) => loader.load(assets[i].path, res, undefined, rej));
+                    const gltf = await new Promise((res, rej) => loader.load(assets[i].path, res, undefined, (err) => rej(err)));
                     if (['c1', 'c2', 'c3', 'coin'].includes(assets[i].id)) {
                         const box = new THREE.Box3().setFromObject(gltf.scene);
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
-                        gltf.scene.position.x -= center.x;
-                        gltf.scene.position.y -= (center.y - size.y / 2); 
-                        gltf.scene.position.z -= center.z;
+                        gltf.scene.position.set(-center.x, -(center.y - size.y / 2), -center.z);
                         gltf.scene.traverse(child => { if (child.isMesh) child.material.side = THREE.DoubleSide; });
                         const group = new THREE.Group();
                         group.add(gltf.scene);
@@ -102,7 +101,7 @@
                     } else {
                         this.models[assets[i].id] = gltf;
                     }
-                } catch(e) {}
+                } catch(e) { console.warn("Missing asset:", assets[i].id); }
                 const percent = Math.floor(((i + 1) / assets.length) * 100);
                 prgBar.style.width = percent + '%';
                 prgText.innerText = percent + '%';
@@ -125,11 +124,13 @@
             this.scene.add(new THREE.AmbientLight(0xffffff, 3.5));
             for (let i = 0; i < 6; i++) {
                 const model = (i < 4 ? this.models.street : this.models.tunnel) || this.models.street;
-                const m = model.scene.clone();
-                m.position.set(-170, 0, -i * CONFIG.segmentLength);
-                m.scale.set(1.5, 1.5, 1.5);
-                this.scene.add(m);
-                this.mapSegments.push(m);
+                if (model) {
+                    const m = model.scene.clone();
+                    m.position.set(-170, 0, -i * CONFIG.segmentLength);
+                    m.scale.set(1.5, 1.5, 1.5);
+                    this.scene.add(m);
+                    this.mapSegments.push(m);
+                }
             }
             document.getElementById('loading-screen').style.display = 'none';
             document.getElementById('game-ui').style.display = 'flex';
@@ -138,11 +139,39 @@
         }
 
         bind() {
+            // Клавиатура
             window.addEventListener('keydown', e => {
-                if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.state.lane = Math.max(0, this.state.lane - 1);
-                if (e.code === 'ArrowRight' || e.code === 'KeyD') this.state.lane = Math.min(2, this.state.lane + 1);
-                if ((e.code === 'ArrowUp' || e.code === 'Space') && !this.state.jumping) { this.state.jumping = true; this.state.vY = CONFIG.jumpForce; }
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.moveLane(-1);
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') this.moveLane(1);
+                if ((e.code === 'ArrowUp' || e.code === 'Space')) this.jump();
             });
+
+            // Свайпы для телефона
+            window.addEventListener('touchstart', e => {
+                this.touchStart.x = e.touches[0].clientX;
+                this.touchStart.y = e.touches[0].clientY;
+            });
+
+            window.addEventListener('touchend', e => {
+                const dx = e.changedTouches[0].clientX - this.touchStart.x;
+                const dy = e.changedTouches[0].clientY - this.touchStart.y;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (Math.abs(dx) > 30) this.moveLane(dx > 0 ? 1 : -1);
+                } else {
+                    if (dy < -30) this.jump();
+                }
+            });
+        }
+
+        moveLane(dir) {
+            this.state.lane = Math.max(0, Math.min(2, this.state.lane + dir));
+        }
+
+        jump() {
+            if (!this.state.jumping) {
+                this.state.jumping = true;
+                this.state.vY = CONFIG.jumpForce;
+            }
         }
 
         loop() {
@@ -151,19 +180,27 @@
             if (this.mixer) this.mixer.update(0.016);
             this.state.score++;
             document.getElementById('cur-score').innerText = Math.floor(this.state.score / 10);
+            
             this.mapSegments.forEach(s => {
                 s.position.z += CONFIG.speed;
                 if (s.position.z > CONFIG.segmentLength) s.position.z -= CONFIG.segmentLength * 6;
             });
+
             const targetX = (this.state.lane - 1) * CONFIG.laneWidth;
             this.player.position.x += (targetX - this.player.position.x) * 0.22;
+
             if (this.state.jumping) {
                 this.player.position.y += this.state.vY;
                 this.state.vY -= CONFIG.gravity;
-                if (this.player.position.y <= CONFIG.groundY) { this.player.position.y = CONFIG.groundY; this.state.jumping = false; }
+                if (this.player.position.y <= CONFIG.groundY) { 
+                    this.player.position.y = CONFIG.groundY; 
+                    this.state.jumping = false; 
+                }
             }
+
             this.camera.position.set(this.player.position.x, CONFIG.groundY + 45, 65);
             this.camera.lookAt(this.player.position.x, CONFIG.groundY + 25, -50);
+            
             if (this.state.score % 28 === 0) this.spawn();
             this.updateEntities();
             this.renderer.render(this.scene, this.camera);
@@ -177,13 +214,9 @@
             if (nearbyTrains >= 2) {
                 type = 'coin';
             } else {
-                const roll = Math.random();
-                if (roll > 0.4) {
-                    // Равный шанс 33.3% для каждого из трех вагонов
-                    const trainRoll = Math.random();
-                    if (trainRoll < 0.33) type = 'c1';
-                    else if (trainRoll < 0.66) type = 'c2';
-                    else type = 'c3';
+                if (Math.random() > 0.4) {
+                    const r = Math.random();
+                    type = r < 0.33 ? 'c1' : (r < 0.66 ? 'c2' : 'c3');
                 } else {
                     type = 'coin';
                 }
@@ -196,7 +229,6 @@
                         const m = this.models[type].scene.clone();
                         m.scale.set(CONFIG.coinScale, CONFIG.coinScale, CONFIG.coinScale);
                         m.position.set(targetX, CONFIG.groundY + 12, CONFIG.spawnZ + (i * 38)); 
-                        m.rotation.x = 0; 
                         this.activeCoins.push({ m, l });
                         this.scene.add(m);
                     }
@@ -204,7 +236,6 @@
                     const m = this.models[type].scene.clone();
                     m.scale.set(CONFIG.trainScale, CONFIG.trainScale, CONFIG.trainScale);
                     m.position.set(targetX, CONFIG.groundY - 1, CONFIG.spawnZ);
-                    m.rotation.y = 0; 
                     this.obstacles.push({ m, l });
                     this.scene.add(m);
                 }
