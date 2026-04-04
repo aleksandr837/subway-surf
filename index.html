@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Subway Surfers - Final Mobile Fix</title>
+    <title>Subway Surfers - Yandex Mobile Fix</title>
     <style>
         * { touch-action: none; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; }
@@ -88,21 +88,32 @@
             for (let i = 0; i < assets.length; i++) {
                 try {
                     const gltf = await new Promise((res, rej) => loader.load(assets[i].path, res, undefined, rej));
+                    
                     if (['c1', 'c2', 'c3', 'coin'].includes(assets[i].id)) {
+                        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДЛЯ МОБИЛЬНЫХ БРАУЗЕРОВ (Яндекс/Chrome)
+                        // Принудительно просчитываем геометрию до вычисления размеров
+                        gltf.scene.updateMatrixWorld(true); 
+
                         const box = new THREE.Box3().setFromObject(gltf.scene);
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
                         
-                        gltf.scene.position.set(-center.x, -center.y + (size.y / 2), -center.z);
+                        // Если из-за бага телефона размеры 0, ставим дефолтные, чтобы модель не исчезла
+                        if (isNaN(center.x) || size.y === 0) {
+                            gltf.scene.position.set(0, 0, 0);
+                        } else {
+                            gltf.scene.position.set(-center.x, -center.y + (size.y / 2), -center.z);
+                        }
                         
                         gltf.scene.traverse(child => {
                             if (child.isMesh) {
                                 child.material.side = THREE.DoubleSide;
                                 child.frustumCulled = false;
-                                // ПРИНУДИТЕЛЬНОЕ ОТОБРАЖЕНИЕ ДЛЯ ТЕЛЕФОНОВ
+                                
+                                // Защита материалов от мобильных багов отрисовки
                                 if(child.material) {
                                     child.material.transparent = false;
-                                    child.material.opacity = 1;
+                                    child.material.depthWrite = true;
                                     child.material.needsUpdate = true;
                                 }
                             }
@@ -134,7 +145,7 @@
                     this.mixer.clipAction(this.models.player.animations[0]).play();
                 }
             }
-            this.scene.add(new THREE.AmbientLight(0xffffff, 4.0)); // Свет поярче для телефонов
+            this.scene.add(new THREE.AmbientLight(0xffffff, 4.0));
             for (let i = 0; i < 6; i++) {
                 const model = (i < 4 ? this.models.street : this.models.tunnel) || this.models.street;
                 if (model) {
@@ -226,7 +237,6 @@
                 } else {
                     const m = this.models[type].scene.clone();
                     m.scale.set(CONFIG.trainScale, CONFIG.trainScale, CONFIG.trainScale);
-                    // Сдвигаем на 0.2 вверх, чтобы модель не мерцала на земле (для телефонов)
                     m.position.set(targetX, CONFIG.groundY + 0.2, CONFIG.spawnZ);
                     this.obstacles.push({ m, l });
                     this.scene.add(m);
