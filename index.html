@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Subway Surfers - Mobile Fix</title>
+    <title>Subway Surfers - Final Mobile Fix</title>
     <style>
-        /* Блокируем системные жесты, чтобы свайпы работали четко */
         * { touch-action: none; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial Black', sans-serif; }
         .full-screen { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; background-size: cover; background-position: center; }
@@ -61,7 +60,7 @@
             this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 5000);
             this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Оптимизация FPS
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.body.appendChild(this.renderer.domElement);
 
             this.state = { score: 1, coins: 0, alive: true, lane: 1, vY: 0, jumping: false }; 
@@ -94,14 +93,18 @@
                         const center = box.getCenter(new THREE.Vector3());
                         const size = box.getSize(new THREE.Vector3());
                         
-                        // Центровка для мобильных
                         gltf.scene.position.set(-center.x, -center.y + (size.y / 2), -center.z);
                         
-                        // Важный фикс: заставляем телефон рисовать модель всегда
                         gltf.scene.traverse(child => {
                             if (child.isMesh) {
                                 child.material.side = THREE.DoubleSide;
-                                child.frustumCulled = false; 
+                                child.frustumCulled = false;
+                                // ПРИНУДИТЕЛЬНОЕ ОТОБРАЖЕНИЕ ДЛЯ ТЕЛЕФОНОВ
+                                if(child.material) {
+                                    child.material.transparent = false;
+                                    child.material.opacity = 1;
+                                    child.material.needsUpdate = true;
+                                }
                             }
                         });
 
@@ -131,7 +134,7 @@
                     this.mixer.clipAction(this.models.player.animations[0]).play();
                 }
             }
-            this.scene.add(new THREE.AmbientLight(0xffffff, 3.5));
+            this.scene.add(new THREE.AmbientLight(0xffffff, 4.0)); // Свет поярче для телефонов
             for (let i = 0; i < 6; i++) {
                 const model = (i < 4 ? this.models.street : this.models.tunnel) || this.models.street;
                 if (model) {
@@ -157,14 +160,14 @@
             window.addEventListener('touchstart', e => {
                 this.touchStart.x = e.touches[0].clientX;
                 this.touchStart.y = e.touches[0].clientY;
-            }, {passive: false});
+            });
             window.addEventListener('touchend', e => {
                 const dx = e.changedTouches[0].clientX - this.touchStart.x;
                 const dy = e.changedTouches[0].clientY - this.touchStart.y;
                 if (Math.abs(dx) > Math.abs(dy)) {
                     if (Math.abs(dx) > 30) this.moveLane(dx > 0 ? 1 : -1);
                 } else { if (dy < -30) this.jump(); }
-            }, {passive: false});
+            });
         }
 
         moveLane(dir) { this.state.lane = Math.max(0, Math.min(2, this.state.lane + dir)); }
@@ -176,24 +179,19 @@
             if (this.mixer) this.mixer.update(0.016);
             this.state.score++;
             document.getElementById('cur-score').innerText = Math.floor(this.state.score / 10);
-            
             this.mapSegments.forEach(s => {
                 s.position.z += CONFIG.speed;
                 if (s.position.z > CONFIG.segmentLength) s.position.z -= CONFIG.segmentLength * 6;
             });
-
             const targetX = (this.state.lane - 1) * CONFIG.laneWidth;
             this.player.position.x += (targetX - this.player.position.x) * 0.22;
-
             if (this.state.jumping) {
                 this.player.position.y += this.state.vY;
                 this.state.vY -= CONFIG.gravity;
                 if (this.player.position.y <= CONFIG.groundY) { this.player.position.y = CONFIG.groundY; this.state.jumping = false; }
             }
-
             this.camera.position.set(this.player.position.x, CONFIG.groundY + 45, 65);
             this.camera.lookAt(this.player.position.x, CONFIG.groundY + 25, -50);
-            
             if (this.state.score % 28 === 0) this.spawn();
             this.updateEntities();
             this.renderer.render(this.scene, this.camera);
@@ -209,7 +207,6 @@
             } else {
                 if (Math.random() > 0.4) {
                     const r = Math.random();
-                    // Шансы 33/33/33 как и просил
                     if (r < 0.33) type = 'c1';
                     else if (r < 0.66) type = 'c2';
                     else type = 'c3';
@@ -229,7 +226,8 @@
                 } else {
                     const m = this.models[type].scene.clone();
                     m.scale.set(CONFIG.trainScale, CONFIG.trainScale, CONFIG.trainScale);
-                    m.position.set(targetX, CONFIG.groundY, CONFIG.spawnZ);
+                    // Сдвигаем на 0.2 вверх, чтобы модель не мерцала на земле (для телефонов)
+                    m.position.set(targetX, CONFIG.groundY + 0.2, CONFIG.spawnZ);
                     this.obstacles.push({ m, l });
                     this.scene.add(m);
                 }
